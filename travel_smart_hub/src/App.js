@@ -94,16 +94,19 @@ function PlannerPage({ onSetRoute }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Fetch Sambonova API keys from .env
+  // Fetch Sambonova API keys and endpoint config from .env (configurable to fix 404 routing/version issues)
   // Note: VITE_ or REACT_APP_ is required for env vars to be exposed
   const SN_API_KEY = process.env.REACT_APP_SAMBONOVA_API_KEY || "";
   const SN_MODEL = process.env.REACT_APP_SAMBONOVA_MODEL || "sambonova/sambocrn-v1-chat";
+  const SN_API_BASE = process.env.REACT_APP_SAMBONOVA_API_BASE || "https://api.sambonova.ai";
+  const SN_API_VERSION = process.env.REACT_APP_SAMBONOVA_API_VERSION || "v1";
+  const SN_API_CHAT_ENDPOINT = process.env.REACT_APP_SAMBONOVA_CHAT_ENDPOINT || "/chat/completions";
 
   // PUBLIC_INTERFACE
   async function fetchSamboItinerary({ from, to, startDate, endDate }) {
-    // Example API endpoint and payload for Sambonova's Chat/Completion API
-    // Adjust endpoint as appropriate for Sambonova's actual spec
-    const endpoint = "https://api.sambanova.ai/v1/chat/completions";
+    // Compose endpoint for flexibility and to allow environment-driven fix for misconfigured routes/404s
+    const endpoint =
+      `${SN_API_BASE.replace(/\\/+$/,"")}/${SN_API_VERSION.replace(/^\\/+|\\/+$/g,"")}${SN_API_CHAT_ENDPOINT.startsWith("/") ? SN_API_CHAT_ENDPOINT : "/" + SN_API_CHAT_ENDPOINT}`;
     const inputPrompt =
       `You are a trip itinerary planner. Suggest a day-by-day, realistic itinerary for a trip:\n` +
       `- From: ${from}\n- To: ${to}\n- Travel dates: ${startDate} to ${endDate}\n` +
@@ -125,7 +128,7 @@ function PlannerPage({ onSetRoute }) {
           max_tokens: 800
         })
       });
-      if (!resp.ok) throw new Error(`Sambonova error: ${resp.status}`);
+      if (!resp.ok) throw new Error(`Sambonova error: ${resp.status} (${resp.statusText})\nEndpoint: ${endpoint}`);
       const data = await resp.json();
       // Expect either a "choices[0].message.content" or similar structure.
       const resultText =
