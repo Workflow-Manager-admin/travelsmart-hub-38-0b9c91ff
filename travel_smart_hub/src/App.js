@@ -81,7 +81,7 @@ function HomePage({ onNavigate }) {
 }
 
 /**
- * PlannerPage: Enhanced trip planner UI and itinerary generator for travel details and attractions.
+ * PlannerPage: Trip planner that sends From, To, and dates to Sambonova AI for itinerary.
  */
 // PUBLIC_INTERFACE
 function PlannerPage({ onSetRoute }) {
@@ -90,123 +90,74 @@ function PlannerPage({ onSetRoute }) {
   const [to, setTo] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [placesInput, setPlacesInput] = useState("");
-  const [places, setPlaces] = useState([]);
   const [itinerary, setItinerary] = useState(null);
   const [error, setError] = useState("");
-  const placeInputRef = useRef();
+  const [loading, setLoading] = useState(false);
 
-  // Handle dynamic places to visit
-  function addPlace() {
-    const trimmed = placesInput.trim();
-    if (trimmed && !places.includes(trimmed)) {
-      setPlaces([...places, trimmed]);
-      setPlacesInput('');
-      placeInputRef.current && placeInputRef.current.focus();
-    }
-  }
-  function removePlace(idx) {
-    setPlaces(places.filter((_, i) => i !== idx));
-  }
+  // Fetch Sambonova API keys from .env
+  // Note: VITE_ or REACT_APP_ is required for env vars to be exposed
+  const SN_API_KEY = process.env.REACT_APP_SAMBONOVA_API_KEY || "";
+  const SN_MODEL = process.env.REACT_APP_SAMBONOVA_MODEL || "sambonova/sambocrn-v1-chat";
 
-  // Helper: get array of dates between start and end (inclusive)
-  function getTravelDays(start, end) {
-    const result = [];
-    let cur = new Date(start);
-    const last = new Date(end);
-    while (cur <= last) {
-      result.push(new Date(cur));
-      cur.setDate(cur.getDate() + 1);
-    }
-    return result;
-  }
-
-  // Helper: simple (mock) greedy route ordering
-  function optimizeOrder(start, placesArr, end) {
-    // If no routing API, just use the input order. For demo, nearest-neighbor by 'cityCoords' distance if possible.
-    if (!window.L) return [start, ...placesArr, end].filter(Boolean); // fallback plain sequence
-
-    // Cities to use in sequence
-    let sequence = [start].concat(placesArr);
-    // Try to arrange placesArr by greedy closest to previous, using cityCoords (mock)
-    let visited = [], cities = [...placesArr];
-    let current = start;
-    while (cities.length > 0) {
-      let currCoord = getCoords(current);
-      let nearestIdx = 0;
-      let minDist = 1e12;
-      for (let i = 0; i < cities.length; ++i) {
-        let cc = getCoords(cities[i]);
-        let dist = Math.sqrt(Math.pow(cc[0] - currCoord[0], 2) + Math.pow(cc[1] - currCoord[1], 2));
-        if (dist < minDist) {
-          minDist = dist;
-          nearestIdx = i;
-        }
-      }
-      visited.push(cities[nearestIdx]);
-      current = cities[nearestIdx];
-      cities.splice(nearestIdx, 1);
-    }
-    let routeSeq = [start].filter(Boolean).concat(visited).concat([end].filter(Boolean));
-    return routeSeq;
-  }
-
-  // Form submission handler (construct + schedule itinerary)
-  function onSubmit(e) {
-    e.preventDefault();
-    setError('');
-    if (!from || !to || !startDate || !endDate || !places.length) {
-      setError("Please fill from, to, dates, and add at least one place.");
+  // PUBLIC_INTERFACE
+  async function fetchSamboItinerary({ from, to, startDate, endDate }) {
+    // Example API endpoint and payload for Sambonova's Chat/Completion API
+    // Adjust endpoint as appropriate for Sambonova's actual spec
+    const endpoint = "https://api.sambanova.ai/v1/chat/completions";
+    const inputPrompt =
+      `You are a trip itinerary planner. Suggest a day-by-day, realistic itinerary for a trip:\n` +
+      `- From: ${from}\n- To: ${to}\n- Travel dates: ${startDate} to ${endDate}\n` +
+      `Present the itinerary in readable and organized Markdown with day-wise breakdown.`;
+    try {
+      setLoading(true);
+      const resp = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${SN_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: SN_MODEL,
+          messages: [
+            { role: "system", content: "You are a helpful travel itinerary assistant." },
+            { role: "user", content: inputPrompt }
+          ],
+          max_tokens: 800
+        })
+      });
+      if (!resp.ok) throw new Error(`Sambonova error: ${resp.status}`);
+      const data = await resp.json();
+      // Expect either a "choices[0].message.content" or similar structure.
+      const resultText =
+        data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || data?.result || "";
+      if (!resultText) throw new Error("No itinerary returned.");
+      setItinerary({ markdown: resultText });
+      setError("");
+    } catch (err) {
+      setError(`AI API failed: ${err.message}`);
       setItinerary(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Form submission handler
+  async function onSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setItinerary(null);
+    if (!from || !to || !startDate || !endDate) {
+      setError("Please fill in all fields.");
       return;
     }
     if (new Date(endDate) < new Date(startDate)) {
       setError("End date must not be before start date.");
-      setItinerary(null);
       return;
     }
-    // Do not mutate places, calculate route/sequence
-    const seq = optimizeOrder(from, places, to);
-
-    // Distribute places over days, even allocation/greedy for demo (1 attraction per day)
-    const daysArr = getTravelDays(startDate, endDate);
-    // First day = from address, last day = to address, attractions fill the gap, one per day
-    // If more attractions than days, assign multiple per day (as reasonably balanced as possible)
-
-    // Assign attractions to each day (excluding from/to on endpoints)
-    const nAttractDays = Math.max(1, daysArr.length - 2); // days for attractions, not endpoints
-    let scheduled = [];
-    let attractions = seq.slice(1, seq.length - 1); // ignore from/to for schedule rendering
-    // If only 1 day total, cram everything in that day
-    if (daysArr.length === 1) {
-      scheduled.push({
-        date: daysArr[0].toISOString().slice(0, 10),
-        places: [from, ...attractions, to].filter(Boolean),
-      });
-    } else {
-      // From day
-      scheduled.push({ date: daysArr[0].toISOString().slice(0, 10), places: [from] });
-      // Middle days fill attractions, spreading as evenly as possible
-      let attIdx = 0;
-      for (let d = 1; d < daysArr.length-1; ++d) {
-        let perDay = Math.ceil(attractions.length / nAttractDays);
-        if (d > nAttractDays) perDay = 0;
-        let todaysPlaces = attractions.slice(attIdx, attIdx+perDay);
-        if (todaysPlaces.length)
-          scheduled.push({ date: daysArr[d].toISOString().slice(0, 10), places: todaysPlaces });
-        attIdx += perDay;
-      }
-      // Last day = to address
-      scheduled.push({ date: daysArr[daysArr.length-1].toISOString().slice(0, 10), places: [to] });
-    }
-
-    setItinerary({
-      sequence: seq,
-      days: scheduled,
-    });
-
-    // Tell parent for context (used by map/AI, etc)
-    onSetRoute(seq.filter(Boolean));
+    // For map route updating, only [from, to]
+    onSetRoute([from, to]);
+    // Call Sambonova AI for itinerary generation
+    await fetchSamboItinerary({ from, to, startDate, endDate });
   }
 
   return (
@@ -262,68 +213,54 @@ function PlannerPage({ onSetRoute }) {
             />
           </div>
         </div>
-        {/* Places to visit */}
-        <div>
-          <label style={{fontWeight:500, color:"#f8b14f"}}>Places to visit (one per line):</label>
-          <div style={{display:'flex', gap:10, marginTop:4}}>
-            <input
-              type="text"
-              ref={placeInputRef}
-              value={placesInput}
-              onChange={e=>setPlacesInput(e.target.value)}
-              onKeyDown={e=>{
-                if (e.key === 'Enter') { e.preventDefault(); addPlace(); }
-              }}
-              style={{flex:1, padding:8, borderRadius:6, border:"1px solid #cbcbcb"}}
-              placeholder="Add an attraction or city"
-            />
-            <button type="button" className="btn" style={{background: '#b3eca7', color:'#222'}} onClick={addPlace}>
-              Add
-            </button>
-          </div>
-          <ul style={{ listStyle: "none", padding: 0, margin: "6px 0" }}>
-            {places.map((place, idx) => (
-              <li key={place} style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
-                <span style={{ flex: 1, color:'#cb7cb6' }}>{place}</span>
-                <button
-                  type="button"
-                  className="btn"
-                  style={{ background: "#f8b14f", marginLeft: 8, color: "#fff", padding: "3px 11px" }}
-                  onClick={() => removePlace(idx)}>Remove</button>
-              </li>
-            ))}
-          </ul>
-        </div>
         {/* Error display */}
         {error && <div style={{color:'#e57373',margin:'8px 0'}}>{error}</div>}
-        <button type="submit" className="btn btn-large" style={{ background: "#cb7cb6", color:'#fff', marginTop:6 }}>Generate Itinerary</button>
+        <button disabled={loading} type="submit" className="btn btn-large" style={{ background: "#cb7cb6", color:'#fff', marginTop:6 }}>
+          {loading ? "Generating Itinerary..." : "Generate Itinerary"}
+        </button>
       </form>
       {/* Results */}
-      {itinerary && (
+      {itinerary?.markdown && (
         <div style={{marginTop:22}}>
-          <h3 style={{marginBottom:8, color:'#b3eca7'}}>Your Optimized Itinerary</h3>
-          <div>
-            <b>Route order:</b>
-            <span style={{marginLeft:10, color:'#f8b14f'}}>{itinerary.sequence.join(' › ')}</span>
-          </div>
-          <ul style={{ marginTop: 12, paddingLeft:20 }}>
-            {itinerary.days.map((d, i) => (
-              <li key={d.date} style={{
-                marginBottom:10, background: 'rgba(200,200,255,0.06)', boxShadow: '0 0 7px #b3eca733', borderRadius:9, padding: '7px 13px'
-              }}>
-                <b>{d.date}</b>
-                <ul style={{margin:"3px 0 0 10px"}}>
-                  {d.places.map((p, idx) => (
-                    <li key={p+idx} style={{color:'#cb7cb6'}}>{p}</li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
+          <h3 style={{marginBottom:8, color:'#b3eca7'}}>AI-Generated Itinerary</h3>
+          <div
+            style={{
+              background: "#2226",
+              borderRadius: 10,
+              padding: "14px 18px",
+              whiteSpace: "pre-line",
+              color: "#fff",
+              fontSize: "1.065em",
+              marginTop: 8,
+              boxShadow: "0 0 7px #b3eca766"
+            }}
+            // Render Markdown output
+            dangerouslySetInnerHTML={{
+              __html: sanitizeMarkdown(itinerary.markdown)
+            }}
+          />
         </div>
       )}
     </div>
   );
+}
+
+// Simple minimal Markdown sanitizer/renderer (strongs/headings/lists/italics/line-breaks).
+// For real-world, use 'marked' or 'react-markdown' library.
+function sanitizeMarkdown(md) {
+  if (!md) return "";
+  let html = md
+    .replace(/^### (.*)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.*)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.*)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/\*(.*?)\*/g, '<i>$1</i>')
+    .replace(/^- (.*)$/gm, '<ul><li>$1</li></ul>')
+    .replace(/\n{2,}/g, '<br/>')
+    .replace(/\n/g, '<br/>');
+  // Merge adjacent <ul>s
+  html = html.replace(/<\/ul><ul>/g, '');
+  return html;
 }
 
 // Simple mock: resolves a coordinate for each city (replace with geocode API for real apps)
