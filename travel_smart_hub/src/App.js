@@ -529,21 +529,119 @@ function AISuggestions({ itinerary }) {
   );
 }
 
+/**
+ * Enhanced WeatherPage: 
+ * - Toggle between 'Planned Destination' and manual search.
+ * - In 'planned' mode: always uses current destination (first element in route).
+ * - In 'search' mode: allows searching and viewing any city.
+ * - Reactively syncs to context/route changes unless user is in 'search' mode.
+ */
 function WeatherPage({ route }) {
-  const [city, setCity] = useState(route && route.length ? route[0] : '');
+  // "mode" = 'planned' or 'search'
+  const [mode, setMode] = useState('planned');
+  // For search mode
+  const [searchInput, setSearchInput] = useState('');
+  const [searchCity, setSearchCity] = useState('');
+  // For planned dest (route)
+  const plannedCity = route && route.length ? route[route.length - 1] : '';
+
+  // Effect: In planned mode, always show/fetch the planned destination as it changes.
   useEffect(() => {
-    if (route.length) setCity(route[0]);
-  }, [route]);
+    if (mode === 'planned') {
+      // Reset search if switching from search mode
+      setSearchInput('');
+      setSearchCity('');
+    }
+    // No need to set state for plannedCity; it's computed from route
+  }, [mode, route]);
+
+  // UI - clear toggle buttons, react idioms
   return (
-    <div style={{paddingTop:44}}>
-      <div style={{marginBottom:20}}>Check weather for a city on your itinerary:</div>
-      <select value={city} onChange={e=>setCity(e.target.value)} style={{padding:10, borderRadius:7}}>
-        <option value="">Select city</option>
-        {route.map(c=>(
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
-      <WeatherInfo city={city} />
+    <div style={{ paddingTop: 44, maxWidth: 500, margin: "0 auto" }}>
+      <div style={{ marginBottom: 14, display: 'flex', gap: 12, justifyContent: 'center' }}>
+        <button
+          className="btn"
+          style={{
+            background: mode === 'planned' ? '#f8b14f' : '#b3eca7',
+            color: mode === 'planned' ? '#fff' : '#222',
+            borderBottom: mode === 'planned' ? '2px solid #cb7cb6' : 'none',
+            minWidth: 120
+          }}
+          onClick={() => setMode('planned')}
+          disabled={mode === 'planned'}
+        >
+          Planned Destination
+        </button>
+        <button
+          className="btn"
+          style={{
+            background: mode === 'search' ? '#f8b14f' : '#b3eca7',
+            color: mode === 'search' ? '#fff' : '#222',
+            borderBottom: mode === 'search' ? '2px solid #cb7cb6' : 'none',
+            minWidth: 120
+          }}
+          onClick={() => setMode('search')}
+          disabled={mode === 'search'}
+        >
+          Search Anywhere
+        </button>
+      </div>
+      {mode === 'planned' ? (
+        <div>
+          <div style={{ marginBottom: 12, textAlign: "center" }}>
+            Showing weather for your <b>planned destination</b>:
+          </div>
+          <div style={{ marginBottom: 14, display: "flex", justifyContent: "center", gap: 8 }}>
+            <select
+              value={plannedCity || ""}
+              onChange={() => {}} // disables manual change
+              style={{ padding: 10, borderRadius: 7, minWidth: 140 }}
+              disabled
+            >
+              {/* Show only planned city */}
+              <option value="">
+                {plannedCity ? plannedCity : "No destination set"}
+              </option>
+            </select>
+          </div>
+          <WeatherInfo city={plannedCity} />
+        </div>
+      ) : (
+        <div>
+          <div style={{ marginBottom: 14, textAlign: "center" }}>
+            <span>Search and view weather for <b>any city</b>:</span>
+          </div>
+          <form
+            style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", marginBottom: 10 }}
+            onSubmit={e => {
+              e.preventDefault();
+              if (searchInput.trim()) setSearchCity(searchInput.trim());
+            }}
+          >
+            <input
+              type="text"
+              value={searchInput}
+              placeholder="Type city name..."
+              onChange={e => setSearchInput(e.target.value)}
+              style={{ padding: 8, borderRadius: 7, border: "1px solid #cb7cb6", minWidth: 130, flex: 1 }}
+              autoFocus
+            />
+            <button
+              className="btn"
+              style={{ background: "#cb7cb6", color: "#fff", padding: "10px 18px" }}
+              type="submit"
+            >
+              Search
+            </button>
+          </form>
+          {searchCity && (
+            <WeatherInfo city={searchCity} />
+          )}
+        </div>
+      )}
+      <div style={{ marginTop: 28, color: "#b3eca7", fontSize: "1em", textAlign: "center" }}>
+        <span style={{opacity:0.70}}>Tip: Your planned destination is always shown by default. Switch to <b>Search Anywhere</b> to check other cities.</span>
+      </div>
     </div>
   );
 }
