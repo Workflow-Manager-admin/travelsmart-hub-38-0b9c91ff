@@ -6,9 +6,13 @@ import 'leaflet/dist/leaflet.css';
 // Context to share itinerary/route between planner and map
 const UserRouteContext = createContext();
 
-// Mapbox tile support: configure from .env if present
-const MAPBOX_KEY = process.env.REACT_APP_MAPBOX_KEY || '';
-const MAPBOX_STYLE = 'light-v11'; // or other Mapbox styles
+/**
+ * Mapbox tile support: configure API Key securely from .env.
+ * Must define REACT_APP_MAPBOX_KEY in your .env file at project root.
+ * For public fallback OpenStreetMap, leave blank or unset.
+ */
+const MAPBOX_KEY = process.env.REACT_APP_MAPBOX_KEY || ""; // required for Mapbox maps
+const MAPBOX_STYLE = process.env.REACT_APP_MAPBOX_STYLE || "light-v11"; // optionally customize style in .env
 const MAPBOX_DEFAULT_URL =
   `https://api.mapbox.com/styles/v1/mapbox/${MAPBOX_STYLE}/tiles/{z}/{x}/{y}?access_token=${MAPBOX_KEY}`;
 
@@ -442,8 +446,13 @@ function TravelMap() {
 }
 
 function WeatherInfo({ city }) {
-  // Uses OpenWeatherMap demo API for free plan - or you can configure from .env
-  const API_KEY = process.env.REACT_APP_OPENWEATHER_KEY || 'f5012ea0e9a34d4945a6b6bf9258d6f8';
+  /**
+   * OpenWeatherMap API Key:
+   * Set your OpenWeatherMap key in .env as REACT_APP_OPENWEATHER_KEY for security.
+   * Example .env line:
+   *   REACT_APP_OPENWEATHER_KEY=your-real-openweathermap-key
+   */
+  const API_KEY = process.env.REACT_APP_OPENWEATHER_KEY || "";
   const [weather, setWeather] = useState(null);
   const [status, setStatus] = useState('idle');
   useEffect(() => {
