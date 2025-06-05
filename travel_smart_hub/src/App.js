@@ -105,7 +105,6 @@ function PlannerPage({ onSetRoute }) {
   // PUBLIC_INTERFACE
   async function fetchSamboItinerary({ from, to, startDate, endDate }) {
     // Compose endpoint for flexibility and to allow environment-driven fix for misconfigured routes/404s
-    // IMPORTANT: do not double-escape slashes in JavaScript RegExp, only escape in string literals!
     const endpoint =
       SN_API_BASE.replace(/\/+$/, '') + '/' +
       SN_API_VERSION.replace(/^\/+|\/+$/g, '') +
@@ -115,34 +114,121 @@ function PlannerPage({ onSetRoute }) {
       `You are a trip itinerary planner. Suggest a day-by-day, realistic itinerary for a trip:\n` +
       `- From: ${from}\n- To: ${to}\n- Travel dates: ${startDate} to ${endDate}\n` +
       `Present the itinerary in readable and organized Markdown with day-wise breakdown.`;
+
+    // Diagnostics: Log all env config and request params
+    const missingVars = [];
+    if (!SN_API_KEY) missingVars.push("REACT_APP_SAMBONOVA_API_KEY");
+    if (!SN_MODEL) missingVars.push("REACT_APP_SAMBONOVA_MODEL");
+    if (!SN_API_BASE) missingVars.push("REACT_APP_SAMBONOVA_API_BASE");
+    if (!SN_API_VERSION) missingVars.push("REACT_APP_SAMBONOVA_API_VERSION");
+    if (!SN_API_CHAT_ENDPOINT) missingVars.push("REACT_APP_SAMBONOVA_CHAT_ENDPOINT");
+
+    console.group("Sambonova AI Diagnostics");
+    console.log("Fetch endpoint:", endpoint);
+    console.log("Model:", SN_MODEL);
+    console.log("API Key (truncated):", SN_API_KEY ? (SN_API_KEY.slice(0, 8) + "...") : "(missing)");
+    console.log("Env API Base:", SN_API_BASE);
+    console.log("Env Version:", SN_API_VERSION);
+    console.log("Chat Endpoint:", SN_API_CHAT_ENDPOINT);
+    if (missingVars.length > 0) {
+      console.warn("Missing/undefined env vars:", missingVars.join(", "));
+      if (typeof window !== "undefined") {
+        window._SN_MISSING_ENV_VARS = missingVars;
+      }
+    }
+    console.log("Fetch request params:", { from, to, startDate, endDate });
+    console.log("Request body preview:", {
+      model: SN_MODEL,
+      messages: [
+        { role: "system", content: "You are a helpful travel itinerary assistant." },
+        { role: "user", content: inputPrompt }
+      ],
+      max_tokens: 800
+    });
+    console.log("Fetch config: mode: 'cors', method: 'POST', headers: {...}");
+
+    // Prepare fetch options
+    const fetchOptions = {
+      method: "POST",
+      mode: "cors", // EXPLICIT
+      headers: {
+        "Authorization": `Bearer ${SN_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: SN_MODEL,
+        messages: [
+          { role: "system", content: "You are a helpful travel itinerary assistant." },
+          { role: "user", content: inputPrompt }
+        ],
+        max_tokens: 800
+      })
+    };
+
+    // Diagnostic output in UI for errors or warnings
+    let diagnosticsMsg = "";
+    if (missingVars.length > 0) {
+      diagnosticsMsg += "⚠️ Missing required API env vars: " + missingVars.join(", ") +
+        ".\nSee project README for how to configure .env. You must use REACT_APP_ prefix in Create React App.\n";
+    }
+    // Try/catch for all errors including network/CORS
     try {
       setLoading(true);
-      const resp = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${SN_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: SN_MODEL,
-          messages: [
-            { role: "system", content: "You are a helpful travel itinerary assistant." },
-            { role: "user", content: inputPrompt }
-          ],
-          max_tokens: 800
-        })
-      });
-      if (!resp.ok) throw new Error(`Sambonova error: ${resp.status} (${resp.statusText})\nEndpoint: ${endpoint}`);
-      const data = await resp.json();
+      if (diagnosticsMsg) setError(diagnosticsMsg); // show env config issues
+      const resp = await fetch(endpoint, fetchOptions);
+
+      // Log full response/headers for debugging (async)
+      let respClone;
+      try {
+        respClone = resp.clone();
+        respClone
+          .text()
+          .then(txt => {
+            console.log("Raw fetch response (text):", txt);
+            try {
+              const asJson = JSON.parse(txt);
+              console.log("Parsed fetch response (JSON):", asJson);
+            } catch { /** ignore */ }
+          });
+      } catch (e) {
+        console.warn("Could not clone/inspect fetch response", e);
+      }
+
+      if (!resp.ok) {
+        let errText = await resp.text();
+        console.error("Sambonova error HTTP", resp.status, resp.statusText, errText);
+        diagnosticsMsg += `Sambonova error: ${resp.status} (${resp.statusText})
+API Endpoint: ${endpoint}
+Response: ${errText}`;
+        throw new Error(diagnosticsMsg);
+      }
+      let data;
+      try {
+        data = await resp.json();
+        console.log("Final parsed response object:", data);
+      } catch (err) {
+        diagnosticsMsg += "\nFailed to parse JSON from Sambonova response.";
+        console.error("Response parse error:", err);
+        throw new Error(diagnosticsMsg);
+      }
       // Expect either a "choices[0].message.content" or similar structure.
       const resultText =
         data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || data?.result || "";
-      if (!resultText) throw new Error("No itinerary returned.");
+      if (!resultText) {
+        diagnosticsMsg += "\nNo itinerary or answer returned by Sambonova AI.";
+        throw new Error(diagnosticsMsg);
+      }
       setItinerary({ markdown: resultText });
-      setError("");
+      setError(""); // clear error if successful
+      console.groupEnd();
     } catch (err) {
-      setError(`AI API failed: ${err.message}`);
+      // Log stack and error to console
+      console.error("AI API network/fetch error:", err);
+      diagnosticsMsg += (err && err.message) ? err.message : String(err);
+      diagnosticsMsg += "\n\nIf this request failed, check your browser devtools (F12 → Network tab) for failed HTTP requests for more detail. For CORS/network errors, see documentation or API status page. Verify .env variables and endpoint format. Reload with Ctrl+Shift+R after changes.";
+      setError(diagnosticsMsg);
       setItinerary(null);
+      console.groupEnd?.();
     } finally {
       setLoading(false);
     }
@@ -221,7 +307,19 @@ function PlannerPage({ onSetRoute }) {
           </div>
         </div>
         {/* Error display */}
-        {error && <div style={{color:'#e57373',margin:'8px 0'}}>{error}</div>}
+        {error && <div style={{
+          color:'#e57373',
+          background: 'rgba(255,255,255,0.10)',
+          border: '1.5px solid #f084c3',
+          borderRadius: '7px',
+          margin: '8px 0',
+          fontSize: "1.01em",
+          fontFamily: "monospace",
+          whiteSpace:"pre-line",
+          padding: "10px 12px"
+        }}>
+          {error.split('\n').map((line, i) => <div key={i}>{line}</div>)}
+        </div>}
         <button disabled={loading} type="submit" className="btn btn-large" style={{ background: "#cb7cb6", color:'#fff', marginTop:6 }}>
           {loading ? "Generating Itinerary..." : "Generate Itinerary"}
         </button>
