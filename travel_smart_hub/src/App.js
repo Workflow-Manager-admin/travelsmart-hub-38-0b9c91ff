@@ -85,7 +85,13 @@ function HomePage({ onNavigate }) {
 }
 
 /**
- * PlannerPage: Trip planner that sends From, To, and dates to Sambonova AI for itinerary.
+ * PlannerPage: Real-world integration would include Amadeus API usage (flight search, etc).
+ * Place Amadeus API key in .env as REACT_APP_AMADEUS_API_KEY.
+ * Example fetch usage:
+ *   fetch(`https://api.amadeus.com/route?from=X&to=Y`, {
+ *     headers: { Authorization: `Bearer ${process.env.REACT_APP_AMADEUS_API_KEY}` }
+ *   })
+ * See README for details.
  */
 // PUBLIC_INTERFACE
 function PlannerPage({ onSetRoute }) {
@@ -503,7 +509,16 @@ function WeatherInfo({ city }) {
   );
 }
 
-// Fake "AI" for demonstration - in production, call Cohere or OpenAI API
+/**
+ * Cohere API key integration:
+ * For production, set your Cohere key as REACT_APP_COHERE_API_KEY in your .env file.
+ * For Amadeus, use REACT_APP_AMADEUS_API_KEY in .env as well.
+ * Example:
+ *   REACT_APP_COHERE_API_KEY=your-real-cohere-key
+ *   REACT_APP_AMADEUS_API_KEY=your-amadeus-key
+ * Replace mock below with real fetch call using these vars.
+ */
+// Fake "AI" for demonstration - in production, call Cohere or OpenAI API using process.env.REACT_APP_COHERE_API_KEY
 function AISuggestions({ itinerary }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
@@ -515,7 +530,7 @@ function AISuggestions({ itinerary }) {
     if (!userText) return;
     setMessages(m => [...m, { isUser: true, text: userText }]);
     setInput('');
-    // Pretend AI response
+    // === To use Cohere, replace below with a fetch using process.env.REACT_APP_COHERE_API_KEY ===
     setTimeout(() => {
       setMessages(m => [...m, {
         isUser: false, text:
