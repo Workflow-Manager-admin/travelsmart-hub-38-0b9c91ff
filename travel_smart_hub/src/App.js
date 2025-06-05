@@ -511,17 +511,12 @@ export default function App() {
           {currentPage === 'planner' && <section style={{marginTop:44}}>
             <h2 style={{color:'#cb7cb6', marginBottom:8}}>Plan Your Trip</h2>
             <PlannerPage onSetRoute={setUserRoute} />
-            {/* Results below handled within PlannerPage. Still show map if route available */}
-            {(userRoute && userRoute.length > 0) && (
-              <div style={{marginTop:30}}>
-                <TravelMap />
-              </div>
-            )}
+            {/* Map is intentionally NOT rendered in PlannerPage. Only planner/results UI here. */}
           </section>}
           {currentPage === 'map' && (
             <section style={{marginTop:44}}>
               <h2 style={{color:'#b3eca7', marginBottom:8}}>Interactive Map</h2>
-              <TravelMap />
+              <TravelMap key={userRoute.join('_')} />
             </section>
           )}
           {currentPage === 'weather' && (
