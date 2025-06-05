@@ -80,52 +80,248 @@ function HomePage({ onNavigate }) {
   );
 }
 
-// A simple form collecting cities/places. No API integration for demo.
-function ItineraryPlanner({ onSetRoute }) {
-  const [cityInput, setCityInput] = useState('');
-  const [itinerary, setItinerary] = useState([]);
-  const cityInputRef = useRef();
-  function addCity() {
-    let trimmed = cityInput.trim();
-    if (trimmed && !itinerary.includes(trimmed)) {
-      setItinerary([...itinerary, trimmed]);
-      setCityInput('');
-      cityInputRef.current && cityInputRef.current.focus();
+/**
+ * PlannerPage: Enhanced trip planner UI and itinerary generator for travel details and attractions.
+ */
+// PUBLIC_INTERFACE
+function PlannerPage({ onSetRoute }) {
+  // Form states
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [placesInput, setPlacesInput] = useState("");
+  const [places, setPlaces] = useState([]);
+  const [itinerary, setItinerary] = useState(null);
+  const [error, setError] = useState("");
+  const placeInputRef = useRef();
+
+  // Handle dynamic places to visit
+  function addPlace() {
+    const trimmed = placesInput.trim();
+    if (trimmed && !places.includes(trimmed)) {
+      setPlaces([...places, trimmed]);
+      setPlacesInput('');
+      placeInputRef.current && placeInputRef.current.focus();
     }
   }
-  function removeCity(index) {
-    let next = itinerary.filter((_, i) => i !== index);
-    setItinerary(next);
-    onSetRoute(next);
+  function removePlace(idx) {
+    setPlaces(places.filter((_, i) => i !== idx));
   }
-  function handleSubmit(e) {
+
+  // Helper: get array of dates between start and end (inclusive)
+  function getTravelDays(start, end) {
+    const result = [];
+    let cur = new Date(start);
+    const last = new Date(end);
+    while (cur <= last) {
+      result.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return result;
+  }
+
+  // Helper: simple (mock) greedy route ordering
+  function optimizeOrder(start, placesArr, end) {
+    // If no routing API, just use the input order. For demo, nearest-neighbor by 'cityCoords' distance if possible.
+    if (!window.L) return [start, ...placesArr, end].filter(Boolean); // fallback plain sequence
+
+    // Cities to use in sequence
+    let sequence = [start].concat(placesArr);
+    // Try to arrange placesArr by greedy closest to previous, using cityCoords (mock)
+    let visited = [], cities = [...placesArr];
+    let current = start;
+    while (cities.length > 0) {
+      let currCoord = getCoords(current);
+      let nearestIdx = 0;
+      let minDist = 1e12;
+      for (let i = 0; i < cities.length; ++i) {
+        let cc = getCoords(cities[i]);
+        let dist = Math.sqrt(Math.pow(cc[0] - currCoord[0], 2) + Math.pow(cc[1] - currCoord[1], 2));
+        if (dist < minDist) {
+          minDist = dist;
+          nearestIdx = i;
+        }
+      }
+      visited.push(cities[nearestIdx]);
+      current = cities[nearestIdx];
+      cities.splice(nearestIdx, 1);
+    }
+    let routeSeq = [start].filter(Boolean).concat(visited).concat([end].filter(Boolean));
+    return routeSeq;
+  }
+
+  // Form submission handler (construct + schedule itinerary)
+  function onSubmit(e) {
     e.preventDefault();
-    addCity();
+    setError('');
+    if (!from || !to || !startDate || !endDate || !places.length) {
+      setError("Please fill from, to, dates, and add at least one place.");
+      setItinerary(null);
+      return;
+    }
+    if (new Date(endDate) < new Date(startDate)) {
+      setError("End date must not be before start date.");
+      setItinerary(null);
+      return;
+    }
+    // Do not mutate places, calculate route/sequence
+    const seq = optimizeOrder(from, places, to);
+
+    // Distribute places over days, even allocation/greedy for demo (1 attraction per day)
+    const daysArr = getTravelDays(startDate, endDate);
+    // First day = from address, last day = to address, attractions fill the gap, one per day
+    // If more attractions than days, assign multiple per day (as reasonably balanced as possible)
+
+    // Assign attractions to each day (excluding from/to on endpoints)
+    const nAttractDays = Math.max(1, daysArr.length - 2); // days for attractions, not endpoints
+    let scheduled = [];
+    let attractions = seq.slice(1, seq.length - 1); // ignore from/to for schedule rendering
+    // If only 1 day total, cram everything in that day
+    if (daysArr.length === 1) {
+      scheduled.push({
+        date: daysArr[0].toISOString().slice(0, 10),
+        places: [from, ...attractions, to].filter(Boolean),
+      });
+    } else {
+      // From day
+      scheduled.push({ date: daysArr[0].toISOString().slice(0, 10), places: [from] });
+      // Middle days fill attractions, spreading as evenly as possible
+      let attIdx = 0;
+      for (let d = 1; d < daysArr.length-1; ++d) {
+        let perDay = Math.ceil(attractions.length / nAttractDays);
+        if (d > nAttractDays) perDay = 0;
+        let todaysPlaces = attractions.slice(attIdx, attIdx+perDay);
+        if (todaysPlaces.length)
+          scheduled.push({ date: daysArr[d].toISOString().slice(0, 10), places: todaysPlaces });
+        attIdx += perDay;
+      }
+      // Last day = to address
+      scheduled.push({ date: daysArr[daysArr.length-1].toISOString().slice(0, 10), places: [to] });
+    }
+
+    setItinerary({
+      sequence: seq,
+      days: scheduled,
+    });
+
+    // Tell parent for context (used by map/AI, etc)
+    onSetRoute(seq.filter(Boolean));
   }
-  useEffect(() => {
-    onSetRoute(itinerary);
-  }, [itinerary, onSetRoute]);
+
   return (
-    <div>
-      <form onSubmit={handleSubmit} style={{display: 'flex',gap: 10, marginBottom: 22}}>
-        <input
-          type="text"
-          placeholder="Enter a city or place"
-          value={cityInput}
-          ref={cityInputRef}
-          style={{padding: 8, borderRadius:6, border:'1px solid #cbcbcb', flex:1}}
-          onChange={e=>setCityInput(e.target.value)}
-        />
-        <button type="submit" className="btn" style={{background: '#b3eca7', color:'#222'}}>Add</button>
+    <div style={{
+      background: 'rgba(255,255,255,0.06)',
+      padding: 24, borderRadius: 12, maxWidth: 580, margin: '0 auto', boxShadow: '0 2px 16px #0001'
+    }}>
+      <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* From/To */}
+        <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
+          <div style={{flex:1, minWidth:180}}>
+            <label style={{fontWeight:500, color:"#cb7cb6"}}>From (starting address or city):</label>
+            <input
+              value={from}
+              onChange={e=>setFrom(e.target.value)}
+              required
+              style={{padding:8, borderRadius:6, border:"1px solid #b3eca7", width:"100%"}}
+              placeholder="e.g. New York"
+              autoFocus
+            />
+          </div>
+          <div style={{flex:1, minWidth:180}}>
+            <label style={{fontWeight:500, color:"#cb7cb6"}}>To (destination address or city):</label>
+            <input
+              value={to}
+              onChange={e=>setTo(e.target.value)}
+              required
+              style={{padding:8, borderRadius:6, border:"1px solid #b3eca7", width:"100%"}}
+              placeholder="e.g. Paris"
+            />
+          </div>
+        </div>
+        {/* Travel dates */}
+        <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
+          <div>
+            <label style={{fontWeight:500, color:"#b3eca7"}}>Start Date:</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={e=>setStartDate(e.target.value)}
+              required
+              style={{padding:6, borderRadius:6, border:"1px solid #b3eca7"}}
+            />
+          </div>
+          <div>
+            <label style={{fontWeight:500, color:"#b3eca7"}}>End Date:</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={e=>setEndDate(e.target.value)}
+              required
+              style={{padding:6, borderRadius:6, border:"1px solid #b3eca7"}}
+            />
+          </div>
+        </div>
+        {/* Places to visit */}
+        <div>
+          <label style={{fontWeight:500, color:"#f8b14f"}}>Places to visit (one per line):</label>
+          <div style={{display:'flex', gap:10, marginTop:4}}>
+            <input
+              type="text"
+              ref={placeInputRef}
+              value={placesInput}
+              onChange={e=>setPlacesInput(e.target.value)}
+              onKeyDown={e=>{
+                if (e.key === 'Enter') { e.preventDefault(); addPlace(); }
+              }}
+              style={{flex:1, padding:8, borderRadius:6, border:"1px solid #cbcbcb"}}
+              placeholder="Add an attraction or city"
+            />
+            <button type="button" className="btn" style={{background: '#b3eca7', color:'#222'}} onClick={addPlace}>
+              Add
+            </button>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: "6px 0" }}>
+            {places.map((place, idx) => (
+              <li key={place} style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+                <span style={{ flex: 1, color:'#cb7cb6' }}>{place}</span>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ background: "#f8b14f", marginLeft: 8, color: "#fff", padding: "3px 11px" }}
+                  onClick={() => removePlace(idx)}>Remove</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {/* Error display */}
+        {error && <div style={{color:'#e57373',margin:'8px 0'}}>{error}</div>}
+        <button type="submit" className="btn btn-large" style={{ background: "#cb7cb6", color:'#fff', marginTop:6 }}>Generate Itinerary</button>
       </form>
-      <ul style={{listStyle:'none', padding:0, margin:0}}>
-        {itinerary.map((city, idx) => (
-          <li key={city} style={{marginBottom:8, display:'flex', alignItems:'center'}}>
-            <span style={{flex:1, fontSize:'1.08em',color:'#cb7cb6'}}>{city}</span>
-            <button className="btn" style={{background:'#f8b14f',marginLeft:8, color:'#fff',padding:'4px 12px'}} onClick={()=>removeCity(idx)}>Remove</button>
-          </li>
-        ))}
-      </ul>
+      {/* Results */}
+      {itinerary && (
+        <div style={{marginTop:22}}>
+          <h3 style={{marginBottom:8, color:'#b3eca7'}}>Your Optimized Itinerary</h3>
+          <div>
+            <b>Route order:</b>
+            <span style={{marginLeft:10, color:'#f8b14f'}}>{itinerary.sequence.join(' › ')}</span>
+          </div>
+          <ul style={{ marginTop: 12, paddingLeft:20 }}>
+            {itinerary.days.map((d, i) => (
+              <li key={d.date} style={{
+                marginBottom:10, background: 'rgba(200,200,255,0.06)', boxShadow: '0 0 7px #b3eca733', borderRadius:9, padding: '7px 13px'
+              }}>
+                <b>{d.date}</b>
+                <ul style={{margin:"3px 0 0 10px"}}>
+                  {d.places.map((p, idx) => (
+                    <li key={p+idx} style={{color:'#cb7cb6'}}>{p}</li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -314,14 +510,13 @@ export default function App() {
           {currentPage === 'home' && <HomePage onNavigate={setCurrentPage} />}
           {currentPage === 'planner' && <section style={{marginTop:44}}>
             <h2 style={{color:'#cb7cb6', marginBottom:8}}>Plan Your Trip</h2>
-            <ItineraryPlanner onSetRoute={setUserRoute} />
+            <PlannerPage onSetRoute={setUserRoute} />
+            {/* Results below handled within PlannerPage. Still show map if route available */}
             {(userRoute && userRoute.length > 0) && (
-              <div style={{marginTop:20}}>
-                <span style={{color:'#b3eca7'}}>Your route:</span>
-                <span style={{marginLeft:10, color:'#f8b14f'}}>{userRoute.join(' › ')}</span>
+              <div style={{marginTop:30}}>
+                <TravelMap />
               </div>
             )}
-            <div style={{marginTop:30}}><TravelMap /></div>
           </section>}
           {currentPage === 'map' && (
             <section style={{marginTop:44}}>
