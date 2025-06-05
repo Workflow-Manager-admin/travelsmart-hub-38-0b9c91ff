@@ -457,6 +457,10 @@ function WeatherInfo({ city }) {
   const [status, setStatus] = useState('idle');
   useEffect(() => {
     if (!city) return;
+    if (!API_KEY) {
+      setStatus('no_key');
+      return;
+    }
     setStatus('loading');
     fetch(
       `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&units=metric&appid=${API_KEY}`
@@ -469,16 +473,30 @@ function WeatherInfo({ city }) {
       .catch(e => setStatus('error'));
   }, [city, API_KEY]);
 
-  if (!city) return <div style={{fontStyle:'italic', color:'#b3eca7'}}>Select a city to get weather.</div>;
-  if (status === 'loading') return <div>Loading weather for <span style={{color:'#cb7cb6'}}>{city}</span>...</div>;
-  if (status === 'error' || weather?.cod === "404") return <div style={{color:'#e57373'}}>Weather unavailable for {city}.</div>;
+  if (!city) return <div style={{ fontStyle: 'italic', color: '#b3eca7' }}>Select a city to get weather.</div>;
+  if (status === 'no_key') return (
+    <div style={{
+      color: '#e57373',
+      background: '#fff5',
+      border: '1.5px solid #f084c3',
+      borderRadius: 7,
+      fontSize: "1.01em",
+      margin: "12px 0",
+      padding: "10px 12px"
+    }}>
+      <b>Weather API key missing:</b> Please set <code>REACT_APP_OPENWEATHER_KEY</code> in your <b>.env</b> file.<br />
+      See project README for setup instructions.
+    </div>
+  );
+  if (status === 'loading') return <div>Loading weather for <span style={{ color: '#cb7cb6' }}>{city}</span>...</div>;
+  if (status === 'error' || weather?.cod === "404") return <div style={{ color: '#e57373' }}>Weather unavailable for {city}.</div>;
   if (!weather) return null;
 
   return (
-    <div style={{background:'#cb7cb6', borderRadius:10, padding:18, margin: '18px auto', maxWidth:300}}>
-      <div style={{fontSize:'1.08em', fontWeight: 600}}>{weather.name} Weather</div>
+    <div style={{ background: '#cb7cb6', borderRadius: 10, padding: 18, margin: '18px auto', maxWidth: 300 }}>
+      <div style={{ fontSize: '1.08em', fontWeight: 600 }}>{weather.name} Weather</div>
       <div>🌡 {weather.main?.temp}&deg;C | {weather.weather?.[0]?.main}</div>
-      <div style={{fontSize: '0.96em', color: '#f8b14f'}}>{weather.weather?.[0]?.description}</div>
+      <div style={{ fontSize: '0.96em', color: '#f8b14f' }}>{weather.weather?.[0]?.description}</div>
       <div>💧 Humidity: {weather.main?.humidity}%</div>
       <div>🌬 Wind: {weather.wind?.speed} m/s</div>
     </div>
