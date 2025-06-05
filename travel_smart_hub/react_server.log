@@ -18,3 +18,18 @@ Note that the development build is not optimized.
 To create a production build, use npm run build.
 
 webpack compiled successfully
+Compiling...
+Failed to compile.
+
+Module not found: Error: Can't resolve 'react-leaflet' in '/home/kavia/workspace/code-generation/travelsmart-hub-38-0b9c91ff/travel_smart_hub/src'
+WARNING in [eslint] 
+src/App.js
+  Line 3:60:  'useMap' is defined but never used  no-unused-vars
+
+ERROR in ./src/App.js 12:0-89
+Module not found: Error: Can't resolve 'react-leaflet' in '/home/kavia/workspace/code-generation/travelsmart-hub-38-0b9c91ff/travel_smart_hub/src'
+
+ERROR in ./src/App.js 13:0-34
+Module not found: Error: Can't resolve 'leaflet/dist/leaflet.css' in '/home/kavia/workspace/code-generation/travelsmart-hub-38-0b9c91ff/travel_smart_hub/src'
+
+webpack compiled with 2 errors and 1 warning
