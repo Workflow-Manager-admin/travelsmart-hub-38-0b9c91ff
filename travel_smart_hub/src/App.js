@@ -347,6 +347,10 @@ function getCoords(city) {
   return [Math.random()*140-70, Math.random()*360-180];
 }
 
+/**
+ * TravelMap displays only the current itinerary/route on the map and clears all old markers/routes on every update.
+ * The map is never rendered in the PlannerPage itself, only on the MapPage or wherever TravelMap is used.
+ */
 // PUBLIC_INTERFACE
 function TravelMap() {
   const { route } = useContext(UserRouteContext);
@@ -354,10 +358,17 @@ function TravelMap() {
   // Center to user's first route or default to Europe
   const center = route && route.length > 0 ? getCoords(route[0]) : [48.85, 2.35];
 
+  // Force a map reset (clear all markers/polyline) by using key
+  // Only the latest route is ever rendered
   return (
     <div style={{ position: 'relative', height: 420, marginTop: 18, borderRadius: 12, overflow: 'hidden', boxShadow: '0 4px 16px #00000022' }}>
       <MapboxErrorBanner error={mapboxError} />
-      <MapContainer center={center} zoom={2} style={{ height: '100%', width: '100%' }}>
+      <MapContainer
+        key={route.join('_') || 'empty'} // Remount map to clear previous on route change
+        center={center}
+        zoom={2}
+        style={{ height: '100%', width: '100%' }}
+      >
         <TileLayer
           url={MAPBOX_KEY ? MAPBOX_DEFAULT_URL : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'}
           attribution={MAPBOX_KEY ?
@@ -368,10 +379,10 @@ function TravelMap() {
             tileerror: (e) => setMapboxError('Tiles could not load; check API key or style.'),
           }}
         />
-        {route.length > 0 && (
+        {(route.length > 0) && (
           <>
             {route.map((city, i) => (
-              <Marker key={city} position={getCoords(city)}>
+              <Marker key={city + i} position={getCoords(city)}>
                 <Popup>{city}</Popup>
               </Marker>
             ))}
