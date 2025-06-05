@@ -105,8 +105,12 @@ function PlannerPage({ onSetRoute }) {
   // PUBLIC_INTERFACE
   async function fetchSamboItinerary({ from, to, startDate, endDate }) {
     // Compose endpoint for flexibility and to allow environment-driven fix for misconfigured routes/404s
+    // IMPORTANT: do not double-escape slashes in JavaScript RegExp, only escape in string literals!
     const endpoint =
-      `${SN_API_BASE.replace(/\\/+$/,"")}/${SN_API_VERSION.replace(/^\\/+|\\/+$/g,"")}${SN_API_CHAT_ENDPOINT.startsWith("/") ? SN_API_CHAT_ENDPOINT : "/" + SN_API_CHAT_ENDPOINT}`;
+      SN_API_BASE.replace(/\/+$/, '') + '/' +
+      SN_API_VERSION.replace(/^\/+|\/+$/g, '') +
+      (SN_API_CHAT_ENDPOINT.startsWith('/') ? SN_API_CHAT_ENDPOINT : '/' + SN_API_CHAT_ENDPOINT);
+
     const inputPrompt =
       `You are a trip itinerary planner. Suggest a day-by-day, realistic itinerary for a trip:\n` +
       `- From: ${from}\n- To: ${to}\n- Travel dates: ${startDate} to ${endDate}\n` +
