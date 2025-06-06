@@ -1,19 +1,21 @@
 import React, { useState, useEffect, useContext, createContext } from 'react';
 import './App.css';
 
-// ------- Centralized API Key Helper -------
-// PUBLIC_INTERFACE
-/**
- * Retrieves an API key from process.env by convention.
- * API keys must be defined as REACT_APP_<API_KEY_NAME> in .env.
- * If the key is missing, returns undefined.
- * Call getApiKey('OPENWEATHERMAP_API_KEY') for REACT_APP_OPENWEATHERMAP_API_KEY, etc.
+/*
+ * ------- Centralized API Key Declarations -------
+ * All third-party API keys are referenced exclusively via process.env.REACT_APP_<API_KEY>.
+ * No hardcoded API key values are present in this file.
  */
-function getApiKey(keyName) {
-  /* e.g. keyName: 'OPENWEATHERMAP_API_KEY' */
-  const fullEnvName = `REACT_APP_${keyName}`;
-  return process.env[fullEnvName];
-}
+
+// PUBLIC_INTERFACE
+// OpenWeatherMap API Key
+const OPENWEATHERMAP_API_KEY = process.env.REACT_APP_OPENWEATHERMAP_API_KEY;
+// Amadeus API Client ID and Secret
+const AMADEUS_CLIENT_ID = process.env.REACT_APP_AMADEUS_CLIENT_ID;
+const AMADEUS_CLIENT_SECRET = process.env.REACT_APP_AMADEUS_CLIENT_SECRET;
+// Cohere API Key
+const COHERE_API_KEY = process.env.REACT_APP_COHERE_API_KEY;
+
 // --- Theme Variables Set (light theme, custom colors)
 const themeColors = {
   '--primary': '#f084c3',
@@ -138,9 +140,9 @@ function Planner() {
     setFetching(true);
     setError('');
     setResult(null);
-    // Retrieve Amadeus credentials using centralized helper
-    const client_id = getApiKey('AMADEUS_CLIENT_ID');
-    const client_secret = getApiKey('AMADEUS_CLIENT_SECRET');
+    // Use explicitly declared Amadeus credentials
+    const client_id = AMADEUS_CLIENT_ID;
+    const client_secret = AMADEUS_CLIENT_SECRET;
 
     if (!client_id || !client_secret) {
       setError(
@@ -257,11 +259,8 @@ function WeatherPage() {
   // PUBLIC_INTERFACE
   async function fetchWeather() {
     setFetching(true); setError(''); setWeather(null);
-    // PUBLIC_INTERFACE
-    /**
-     * Retrieves OpenWeatherMap API key from environment using centralized helper.
-     */
-    const apiKey = getApiKey('OPENWEATHERMAP_API_KEY');
+    // Use explicitly declared constant for OpenWeatherMap API key
+    const apiKey = OPENWEATHERMAP_API_KEY;
     if (!apiKey) {
       setError("OpenWeatherMap API key is not set. Please check your .env file for REACT_APP_OPENWEATHERMAP_API_KEY.");
       setFetching(false);
@@ -274,7 +273,6 @@ function WeatherPage() {
         setFetching(false);
         return;
       }
-      // Use env variable for API key (do NOT hardcode API key)
       const resp = await fetch(
         `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(query)}&appid=${apiKey}&units=metric`
       );
@@ -321,11 +319,8 @@ function AIAssistant() {
   // PUBLIC_INTERFACE
   async function askAssistant(promptText) {
     setFetching(true);
-    // PUBLIC_INTERFACE
-    /**
-     * Retrieves Cohere API key from environment using centralized helper.
-     */
-    const cohereApiKey = getApiKey('COHERE_API_KEY');
+    // Use explicitly declared constant for Cohere API key
+    const cohereApiKey = COHERE_API_KEY;
     if (!cohereApiKey) {
       setMsgs(msgs => [
         ...msgs,
