@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useContext, createContext } from 'react';
 import './App.css';
 
+// ------- Centralized API Key Helper -------
+// PUBLIC_INTERFACE
+/**
+ * Retrieves an API key from process.env by convention.
+ * API keys must be defined as REACT_APP_<API_KEY_NAME> in .env.
+ * If the key is missing, returns undefined.
+ * Call getApiKey('OPENWEATHERMAP_API_KEY') for REACT_APP_OPENWEATHERMAP_API_KEY, etc.
+ */
+function getApiKey(keyName) {
+  /* e.g. keyName: 'OPENWEATHERMAP_API_KEY' */
+  const fullEnvName = `REACT_APP_${keyName}`;
+  return process.env[fullEnvName];
+}
 // --- Theme Variables Set (light theme, custom colors)
 const themeColors = {
   '--primary': '#f084c3',
@@ -125,14 +138,9 @@ function Planner() {
     setFetching(true);
     setError('');
     setResult(null);
-    // Retrieve Amadeus credentials from environment variables (for security & config flexibility)
-    // PUBLIC_INTERFACE
-    /**
-     * Retrieves Amadeus API credentials from the environment.
-     * Ensure variables are set in the .env file with the prefix REACT_APP_.
-     */
-    const client_id = process.env.REACT_APP_AMADEUS_CLIENT_ID;
-    const client_secret = process.env.REACT_APP_AMADEUS_CLIENT_SECRET;
+    // Retrieve Amadeus credentials using centralized helper
+    const client_id = getApiKey('AMADEUS_CLIENT_ID');
+    const client_secret = getApiKey('AMADEUS_CLIENT_SECRET');
 
     if (!client_id || !client_secret) {
       setError(
@@ -251,10 +259,9 @@ function WeatherPage() {
     setFetching(true); setError(''); setWeather(null);
     // PUBLIC_INTERFACE
     /**
-     * Retrieves OpenWeatherMap API key from environment.
-     * Always use REACT_APP_OPENWEATHERMAP_API_KEY variable from .env.
+     * Retrieves OpenWeatherMap API key from environment using centralized helper.
      */
-    const apiKey = process.env.REACT_APP_OPENWEATHERMAP_API_KEY;
+    const apiKey = getApiKey('OPENWEATHERMAP_API_KEY');
     if (!apiKey) {
       setError("OpenWeatherMap API key is not set. Please check your .env file for REACT_APP_OPENWEATHERMAP_API_KEY.");
       setFetching(false);
@@ -316,10 +323,9 @@ function AIAssistant() {
     setFetching(true);
     // PUBLIC_INTERFACE
     /**
-     * Retrieves Cohere API key from environment.
-     * Ensure REACT_APP_COHERE_API_KEY is set in your .env file.
+     * Retrieves Cohere API key from environment using centralized helper.
      */
-    const cohereApiKey = process.env.REACT_APP_COHERE_API_KEY;
+    const cohereApiKey = getApiKey('COHERE_API_KEY');
     if (!cohereApiKey) {
       setMsgs(msgs => [
         ...msgs,
