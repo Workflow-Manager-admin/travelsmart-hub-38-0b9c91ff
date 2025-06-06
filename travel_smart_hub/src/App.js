@@ -126,11 +126,18 @@ function Planner() {
     setError('');
     setResult(null);
     // Retrieve Amadeus credentials from environment variables (for security & config flexibility)
+    // PUBLIC_INTERFACE
+    /**
+     * Retrieves Amadeus API credentials from the environment.
+     * Ensure variables are set in the .env file with the prefix REACT_APP_.
+     */
     const client_id = process.env.REACT_APP_AMADEUS_CLIENT_ID;
     const client_secret = process.env.REACT_APP_AMADEUS_CLIENT_SECRET;
 
     if (!client_id || !client_secret) {
-      setError("Amadeus API credentials are not set. Please check your environment variables.");
+      setError(
+        "Amadeus API credentials are not set. Please check your .env file for REACT_APP_AMADEUS_CLIENT_ID and REACT_APP_AMADEUS_CLIENT_SECRET."
+      );
       setFetching(false);
       return;
     }
@@ -242,9 +249,14 @@ function WeatherPage() {
   // PUBLIC_INTERFACE
   async function fetchWeather() {
     setFetching(true); setError(''); setWeather(null);
+    // PUBLIC_INTERFACE
+    /**
+     * Retrieves OpenWeatherMap API key from environment.
+     * Ensure REACT_APP_OPENWEATHERMAP_API_KEY is set in your .env file.
+     */
     const apiKey = process.env.REACT_APP_OPENWEATHERMAP_API_KEY;
     if (!apiKey) {
-      setError("OpenWeatherMap API key is not set. Please check your environment variables.");
+      setError("OpenWeatherMap API key is not set. Please check your .env file for REACT_APP_OPENWEATHERMAP_API_KEY.");
       setFetching(false);
       return;
     }
@@ -301,11 +313,16 @@ function AIAssistant() {
   // PUBLIC_INTERFACE
   async function askAssistant(promptText) {
     setFetching(true);
+    // PUBLIC_INTERFACE
+    /**
+     * Retrieves Cohere API key from environment.
+     * Ensure REACT_APP_COHERE_API_KEY is set in your .env file.
+     */
     const cohereApiKey = process.env.REACT_APP_COHERE_API_KEY;
     if (!cohereApiKey) {
       setMsgs(msgs => [
         ...msgs,
-        { role: 'assistant', content: "Cohere API key is not set. Please check your environment variables." }
+        { role: 'assistant', content: "Cohere API key is not set. Please check your .env file for REACT_APP_COHERE_API_KEY." }
       ]);
       setFetching(false);
       return;
