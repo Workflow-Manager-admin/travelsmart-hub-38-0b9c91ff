@@ -125,9 +125,15 @@ function Planner() {
     setFetching(true);
     setError('');
     setResult(null);
-    // NOTE: Replace with your actual credentials (e.g. via env variables)
-    const client_id = "REPLACE_WITH_YOUR_AMADEUS_CLIENT_ID";
-    const client_secret = "REPLACE_WITH_YOUR_AMADEUS_CLIENT_SECRET";
+    // Retrieve Amadeus credentials from environment variables (for security & config flexibility)
+    const client_id = process.env.REACT_APP_AMADEUS_CLIENT_ID;
+    const client_secret = process.env.REACT_APP_AMADEUS_CLIENT_SECRET;
+
+    if (!client_id || !client_secret) {
+      setError("Amadeus API credentials are not set. Please check your environment variables.");
+      setFetching(false);
+      return;
+    }
 
     try {
       // Step 1: Get access token
@@ -236,8 +242,12 @@ function WeatherPage() {
   // PUBLIC_INTERFACE
   async function fetchWeather() {
     setFetching(true); setError(''); setWeather(null);
-    // NOTE: Replace with your OpenWeatherMap API Key
-    const apiKey = "REPLACE_WITH_YOUR_OPENWEATHERMAP_API_KEY";
+    const apiKey = process.env.REACT_APP_OPENWEATHERMAP_API_KEY;
+    if (!apiKey) {
+      setError("OpenWeatherMap API key is not set. Please check your environment variables.");
+      setFetching(false);
+      return;
+    }
     try {
       // Search by city name or IATA code (not a direct mapping, but demo purposes)
       if (!query) {
@@ -291,8 +301,15 @@ function AIAssistant() {
   // PUBLIC_INTERFACE
   async function askAssistant(promptText) {
     setFetching(true);
-    // NOTE: Replace with your Cohere API key
-    const cohereApiKey = "REPLACE_WITH_YOUR_COHERE_API_KEY";
+    const cohereApiKey = process.env.REACT_APP_COHERE_API_KEY;
+    if (!cohereApiKey) {
+      setMsgs(msgs => [
+        ...msgs,
+        { role: 'assistant', content: "Cohere API key is not set. Please check your environment variables." }
+      ]);
+      setFetching(false);
+      return;
+    }
     try {
       const resp = await fetch("https://api.cohere.ai/v1/chat", {
         method: "POST",
