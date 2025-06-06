@@ -252,7 +252,7 @@ function WeatherPage() {
     // PUBLIC_INTERFACE
     /**
      * Retrieves OpenWeatherMap API key from environment.
-     * Ensure REACT_APP_OPENWEATHERMAP_API_KEY is set in your .env file.
+     * Always use REACT_APP_OPENWEATHERMAP_API_KEY variable from .env.
      */
     const apiKey = process.env.REACT_APP_OPENWEATHERMAP_API_KEY;
     if (!apiKey) {
@@ -267,6 +267,7 @@ function WeatherPage() {
         setFetching(false);
         return;
       }
+      // Use env variable for API key (do NOT hardcode API key)
       const resp = await fetch(
         `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(query)}&appid=${apiKey}&units=metric`
       );
