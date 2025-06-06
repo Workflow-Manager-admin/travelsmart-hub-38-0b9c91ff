@@ -1,0 +1,4 @@
+{
+    "command": "PORT=<port> BROWSER=none npm start",
+    "working_directory": "/home/kavia/workspace/code-generation/travelsmart-hub-38-0b9c91ff/travel_smart_hub"
+}
